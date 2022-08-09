@@ -663,7 +663,7 @@ def Analyse_file(path, analyses = [0, 1, 2], reco = True, nsets = 1, layer = Non
         hist_dict = Analyse_file(path, analyses = [0, 1, 2], nsets = 3, layer = None) has the same output as:
         `hist_dict = None
          for i in range(3):
-             hist_dict = Analyse_file(path, analyses = [0, 1, 2], nsets = 3, layer = i, hist_dict = hist_dict)`
+             hist_dict = Analyse_file(path, analyses = [i], nsets = 3, layer = i, hist_dict = hist_dict)`
     """
 
     # Initiate the histogram dictionary if it hasn't been passed as a kwarg.
@@ -748,21 +748,23 @@ def Analyse_file(path, analyses = [0, 1, 2], reco = True, nsets = 1, layer = Non
         # Fill the histograms with the results of the analyses of the batch data
         print('Filling histograms')
         events = Fill_histograms(jets, leptons, events, hist_dict, layer = layer, analyses = analyses, nbatch = nbatch)
-        events_list.append(events[events['Bjet_group'] > 0])
+        events_list.append(events[np.logical_and(events['Bjet_group'] > 0, events['Event_type'].isin(analyses))])
 
     events = pd.concat(events_list, ignore_index = True)
     return hist_dict, events
 
 # %%
 
-decays = ['fullhad']
-file_path_ttHH = ['/Users/renske/Documents/CERN/ttHH/ttHH_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
-file_path_ttHjj = ['/Users/renske/Documents/CERN/ttHH/ttHjj_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
-file_path_ttbbbb = ['/Users/renske/Documents/CERN/ttHH/ttbbbb_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
+decays = ['fullhad', 'semilep', 'dilep']
+# file_path_ttHH = ['/Users/renske/Documents/CERN/ttHH/ttHH_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
+# file_path_ttHjj = ['/Users/renske/Documents/CERN/ttHH/ttHjj_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
+# file_path_ttbbbb = ['/Users/renske/Documents/CERN/ttHH/ttbbbb_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
+file_path_ttHH = '/eos/atlas/user/s/smanzoni/ttHH_ntuples/ttHH_inclusive.root:Delphes'
 
-files = [*file_path_ttbbbb, *file_path_ttHjj, *file_path_ttHH]
+# files = [*file_path_ttbbbb, *file_path_ttHjj, *file_path_ttHH]
+files = [file_path_ttHH]
 
-n_events = 10000
+n_events = 100000
 
 xs_decays = {'fullhad': 0.6741**2,
              'semilep': 2*0.2134*0.6741,
@@ -775,17 +777,20 @@ xs_ttbbbb = 0.00012963823574710002
 lumi = 140*10**3
 
 nsets = 3
-keys = [*['ttbbbb {}'.format(decay) for decay in decays], *['ttHjj {}'.format(decay) for decay in decays], *['ttHH {}'.format(decay) for decay in decays]]
-analyses = [0]
+# keys = [*['ttbbbb {}'.format(decay) for decay in decays], *['ttHjj {}'.format(decay) for decay in decays], *['ttHH {}'.format(decay) for decay in decays]]
+keys = [*['ttHH {}'.format(decay) for decay in decays]]
+analyses = [0, 1, 2]
 hist_dict = None
 event_list = []
 
-for i in range(len(files)):
-    hist_dict, events = Analyse_file(files[i], layer = i, analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500)
-    if len(events) != 0:
-        event_list.append(events)
+# for i in range(nsets):
+#     hist_dict, events = Analyse_file(files[0], layer = i, analyses = [analyses[i]], reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500, ntot = n_events)
+#     if len(events) != 0:
+#         event_list.append(events)
 
-events = pd.concat(event_list, keys = keys)
+hist_dict, events = Analyse_file(files[0], analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500, ntot = n_events)
+
+# events = pd.concat(event_list, keys = keys)
 significance = pd.DataFrame(index = pd.Index([0, 1, 2], name = 'nLeptons'), columns = pd.Index([4, 5, 6], name = 'nBjets'))
 for event_type in [0, 1, 2]:
     for group in [4, 5, 6]:
@@ -903,7 +908,7 @@ with PdfPages('Results.pdf') as pdf:
                 ax_ratio.stairs(heights/get(0)[0], bin_edges, color = colours[j], 
                         alpha = 0.6, label = keys[j])
                 ax_ratio.set_xlabel(hist_kwargs.loc['xlabel', key])
-                if key not in ['xWt1', 'xWt2']: ax.set_yscale('log')
+                if key not in ['xWt1']: ax.set_yscale('log')
                 ax.legend()
 
             if key in ['bb_12_mass', 'bb_34_mass', 'bb_56_mass']:
