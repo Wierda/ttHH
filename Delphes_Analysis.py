@@ -755,42 +755,43 @@ def Analyse_file(path, analyses = [0, 1, 2], reco = True, nsets = 1, layer = Non
 
 # %%
 
+lumi = 300*10**3
+
 decays = ['fullhad', 'semilep', 'dilep']
-# file_path_ttHH = ['/Users/renske/Documents/CERN/ttHH/ttHH_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
-# file_path_ttHjj = ['/Users/renske/Documents/CERN/ttHH/ttHjj_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
+file_path_ttHH = ['/eos/user/r/rewierda/tthh/ttHH_10k_'+decay+'_btagged/tag_1_delphes_events.root:Delphes' for decay in decays]
+file_path_ttHjj = ['/eos/user/r/rewierda/tthh/ttHjj_10k_'+decay+'_btagged/tag_1_delphes_events.root:Delphes' for decay in decays]
 # file_path_ttbbbb = ['/Users/renske/Documents/CERN/ttHH/ttbbbb_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
-file_path_ttHH = '/eos/atlas/user/s/smanzoni/ttHH_ntuples/ttHH_inclusive.root:Delphes'
 
 # files = [*file_path_ttbbbb, *file_path_ttHjj, *file_path_ttHH]
-files = [file_path_ttHH]
+files = [*file_path_ttHjj, *file_path_ttHH]
 
-n_events = 100000
+n_events = 10000
 
 xs_decays = {'fullhad': 0.6741**2,
              'semilep': 2*0.2134*0.6741,
-             'dilep': 0.2134**2}
+             'dilep': 0.2134**2,
+             'inclusive': (0.6741 + 0.2134)**2}
 
-xs_ttHH = 0.000744457
-xs_ttHjj = 0.45982401751254454
+xs_ttHH = 0.000744457*0.575**2
+xs_ttHjj = 0.45982401751254454*0.575
 xs_ttbbbb = 0.00012963823574710002
 
-lumi = 140*10**3
-
-nsets = 3
+nsets = 6
 # keys = [*['ttbbbb {}'.format(decay) for decay in decays], *['ttHjj {}'.format(decay) for decay in decays], *['ttHH {}'.format(decay) for decay in decays]]
-keys = [*['ttHH {}'.format(decay) for decay in decays]]
-analyses = [0, 1, 2]
+keys = [*['ttHjj {}'.format(decay) for decay in decays], *['ttHH {}'.format(decay) for decay in decays]]
+analyses = [2]
+
 hist_dict = None
 event_list = []
 
-# for i in range(nsets):
-#     hist_dict, events = Analyse_file(files[0], layer = i, analyses = [analyses[i]], reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500, ntot = n_events)
-#     if len(events) != 0:
-#         event_list.append(events)
+for i in range(nsets):
+    hist_dict, events = Analyse_file(files[i], layer = i, analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500, ntot = n_events)
+    if len(events) != 0:
+        event_list.append(events)
 
-hist_dict, events = Analyse_file(files[0], analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500, ntot = n_events)
+# hist_dict, events = Analyse_file(files[0], analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500, ntot = n_events)
 
-# events = pd.concat(event_list, keys = keys)
+events = pd.concat(event_list, keys = keys)
 significance = pd.DataFrame(index = pd.Index([0, 1, 2], name = 'nLeptons'), columns = pd.Index([4, 5, 6], name = 'nBjets'))
 for event_type in [0, 1, 2]:
     for group in [4, 5, 6]:
@@ -806,22 +807,22 @@ for event_type in [0, 1, 2]:
         background_yields = 0
         for decay in decays:
             if 'ttHH '+decay in labels:
-                signal_yields += xs_ttHH*xs_decays[decay]*len(selected_events.loc['ttHH '+decay])/n_events
+                signal_yields += lumi*xs_ttHH*xs_decays[decay]*len(selected_events.loc['ttHH '+decay])/n_events
             if 'ttHjj '+decay in labels:
-                background_yields += xs_ttHjj*xs_decays[decay]*len(selected_events.loc['ttHjj '+decay])/n_events
+                background_yields += lumi*xs_ttHjj*xs_decays[decay]*len(selected_events.loc['ttHjj '+decay])/n_events
             if 'ttbbbb '+decay in labels:
-                background_yields += xs_ttHjj*xs_decays[decay]*len(selected_events.loc['ttbbbb '+decay])/n_events
+                background_yields += lumi*xs_ttHjj*xs_decays[decay]*len(selected_events.loc['ttbbbb '+decay])/n_events
 
         if background_yields == 0: continue
         significance.loc[event_type, group] = signal_yields/background_yields**0.5
 
-print(lumi*significance)
+print(significance)
 
-events.to_csv('Results_analysis_{}.csv'.format(*analyses))
+events.to_csv('Results_analysis_{}.csv'.format(''.join(map(str, analyses))))
 
 
 #%%
-colours = ['r', 'g', 'b', 'c']
+colours = ['r', 'g', 'b', 'm', 'lime', 'c']
 hist_kwargs = pd.DataFrame({
         'cutflows': ['cutflow'],
         'n_jets': ['number of jets (j)'],
@@ -880,12 +881,13 @@ hist_kwargs = pd.DataFrame({
         'bb_56_pT_dR_2D': [r'$p_{T, bb, 56}$', r'$\Delta R_{bb, 56}$']
         }, index = ['xlabel', 'ylabel'])
 
-with PdfPages('Results.pdf') as pdf:
+with PdfPages('Results_{}.pdf'.format(''.join(map(str, analyses)))) as pdf:
     for key in hist_kwargs.columns.values:
         hist = hist_dict[key]
         if '2D' in key:
             fig, axs = plt.subplots(nrows = nsets, figsize = (7, nsets*7))
             for j in range(nsets):
+                if np.array(hist.data[j]).ndim != 2: continue
                 heights, xedges, yedges = hist.get(j)
                 xv, yv = np.meshgrid(xedges, yedges)
                 axs[j].pcolormesh(xv, yv, heights.T, cmap = 'plasma')
@@ -902,6 +904,7 @@ with PdfPages('Results.pdf') as pdf:
             ax_ratio = divider.append_axes("bottom", 1.2, pad=0.1, sharex=ax)
             ax.xaxis.set_tick_params(labelbottom=False)
             for j in range(nsets):
+                if len(hist.data[j]) == 0: continue
                 heights, bin_edges = get(j)
                 ax.stairs(heights, bin_edges, color = colours[j], 
                         alpha = 0.6, label = keys[j])
