@@ -779,19 +779,20 @@ xs_ttbbbb = 0.00012963823574710002
 nsets = 6
 # keys = [*['ttbbbb {}'.format(decay) for decay in decays], *['ttHjj {}'.format(decay) for decay in decays], *['ttHH {}'.format(decay) for decay in decays]]
 keys = [*['ttHjj {}'.format(decay) for decay in decays], *['ttHH {}'.format(decay) for decay in decays]]
-analyses = [2]
+analyses = [0, 1, 2]
 
 hist_dict = None
 event_list = []
+keys_passed = []
 
 for i in range(nsets):
     hist_dict, events = Analyse_file(files[i], layer = i, analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500, ntot = n_events)
     if len(events) != 0:
         event_list.append(events)
+        keys_passed.append(keys[i])
 
-# hist_dict, events = Analyse_file(files[0], analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500, ntot = n_events)
+events = pd.concat(event_list, keys = keys_passed)
 
-events = pd.concat(event_list, keys = keys)
 significance = pd.DataFrame(index = pd.Index([0, 1, 2], name = 'nLeptons'), columns = pd.Index([4, 5, 6], name = 'nBjets'))
 for event_type in [0, 1, 2]:
     for group in [4, 5, 6]:
