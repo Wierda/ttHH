@@ -189,12 +189,14 @@ def Open_file(path, reco = True):
     ht_data = file.arrays(filter_name = ht_keys)
     event_data = aw.zip([event_data, ht_data])
 
+    n_tot = len(event_data)
+
     file.close()
 
     if reco == True:
-        return electron_data, muon_data, jet_data, event_data
+        return n_tot, electron_data, muon_data, jet_data, event_data
     else:
-        return particle_data, jet_data, event_data
+        return n_tot, particle_data, jet_data, event_data
 
 
 def Find_free_particles(particles, contents_dataframe):
@@ -330,7 +332,7 @@ def Select_contents(particle_data, jet_data, event_data, arange, reco = True):
     return jets, leptons, events
 
 
-def Jet_combinations(ls, jet_momenta, target_mass):
+def Jet_combinations(ls, jet_momenta, target_mass_1, target_mass_2):
 
     jet_combos = combinations(ls, 4)
 
@@ -529,7 +531,6 @@ def Analysis(jets, free_leptons, events, event_type, hist_dict, layer, nbatch):
     for i in range(6):
         hist_dict['b_{}_pt'.format(i+1)].fill(selected_bjets.nth(i)['Jet.PT'].to_numpy(), layer = layer)
         hist_dict['b_{}_eta'.format(i+1)].fill(selected_bjets.nth(i)['Jet.Eta'].abs().to_numpy(), layer = layer)
-        hist_dict['b_{}_phi'.format(i+1)].fill(selected_bjets.nth(i)['Jet.Phi'].to_numpy(), layer = layer)
 
         selected_events.loc[:, 'pT_{}'.format(i+1)] = selected_bjets.nth(i)['Jet.PT']
         selected_events.loc[:, 'eta_{}'.format(i+1)] = selected_bjets.nth(i)['Jet.Eta']
@@ -657,7 +658,7 @@ def Fill_histograms(jets, free_leptons, events, hist_dict, layer = None, analyse
     return events
 
 
-def Analyse_file(path, analyses = [0, 1, 2], reco = True, nsets = 1, layer = None, hist_dict = None, ntot = 10000, nbatch = 100):
+def Analyse_file(path, analyses = [0, 1, 2], reco = True, nsets = 1, layer = None, hist_dict = None, nbatch = 100):
     """
     Analyse a given file with the following settings:
         - path:         Path to the .root file that is to be analysed
@@ -753,7 +754,9 @@ def Analyse_file(path, analyses = [0, 1, 2], reco = True, nsets = 1, layer = Non
 
     # Open the .root file and store the contents in 3 different awkward arrays
     print("\n\nOpening file\n")
-    data = Open_file(path, reco = reco)
+    contents = Open_file(path, reco = reco)
+    ntot = contents[0]
+    data = contents[1:]
 
     events_list = []
 
@@ -779,38 +782,44 @@ def Analyse_file(path, analyses = [0, 1, 2], reco = True, nsets = 1, layer = Non
 
 # %%
 
-lumi = 300*10**3
+lumi = 3000
 
 decays = ['fullhad', 'semilep', 'dilep']
-file_path_ttHH = ['/eos/user/r/rewierda/tthh/ttHH_10k_'+decay+'_btagged/tag_1_delphes_events.root:Delphes' for decay in decays]
-file_path_ttHjj = ['/eos/user/r/rewierda/tthh/ttHjj_10k_'+decay+'_btagged/tag_1_delphes_events.root:Delphes' for decay in decays]
+file_dir = '/eos/atlas/user/s/smanzoni/ttHH_ntuples/'
+file_path_ttHH = [file_dir+'ttHH_1M_events.root:Delphes', file_dir+'ttHH_1M_events_1.root:Delphes']
+file_path_ttHZ = [file_dir+'ttHZ_1M_events.root:Delphes', file_dir+'ttHZ_1M_events_1.root:Delphes']
+file_path_ttVV = [file_dir+'ttVV_1M_events.root:Delphes']
+file_path_ttHjj = [file_dir+'ttHHjj_1M_events.root:Delphes', file_dir+'ttHHjj_1M_events_1.root:Delphes']
+file_path_ttbbbb = [file_dir+'tt4b_1M_events.root:Delphes', file_dir+'tt4b_1M_events_1.root:Delphes']
 # file_path_ttbbbb = ['/Users/renske/Documents/CERN/ttHH/ttbbbb_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
 
 # files = [*file_path_ttbbbb, *file_path_ttHjj, *file_path_ttHH]
-files = [*file_path_ttHjj, *file_path_ttHH]
+files = [*file_path_ttHjj, *file_path_ttbbbb, *file_path_ttHZ, *file_path_ttHH, *file_path_ttVV]
 
-n_events = 10000
+n_events = 1E6
 
 xs_decays = {'fullhad': 0.6741**2,
              'semilep': 2*0.2134*0.6741,
              'dilep': 0.2134**2,
              'inclusive': (0.6741 + 0.2134)**2}
 
-xs_ttHH = 0.000744457*0.575**2
-xs_ttHjj = 0.45982401751254454*0.575
-xs_ttbbbb = 0.00012963823574710002
+xs_ttHH = 0.69*0.575**2
+xs_ttHjj = 329*0.575
+xs_ttHZ = 1.2*0.575
+xs_ttVV = 11.2
+xs_ttbbbb = 370
 
-nsets = 6
+nsets = 5
 # keys = [*['ttbbbb {}'.format(decay) for decay in decays], *['ttHjj {}'.format(decay) for decay in decays], *['ttHH {}'.format(decay) for decay in decays]]
-keys = [*['ttHjj {}'.format(decay) for decay in decays], *['ttHH {}'.format(decay) for decay in decays]]
+keys = [*['ttHjj']*2, *['ttbbbb']*2, *['ttHZ']*2, *['ttHH']*2, *['ttHVV']*1]
 analyses = [0, 1, 2]
 
 hist_dict = None
 event_list = []
 keys_passed = []
 
-for i in range(nsets):
-    hist_dict, events = Analyse_file(files[i], layer = i, analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500, ntot = n_events)
+for i in range(len(files)):
+    hist_dict, events = Analyse_file(files[i], layer = i//2, analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500)
     if len(events) != 0:
         event_list.append(events)
         keys_passed.append(keys[i])
@@ -825,18 +834,24 @@ for event_type in [0, 1, 2]:
         selected_events = events[np.logical_and(mask1, mask2)]
 
         labels = np.asarray(selected_events.index.get_level_values(0).unique(), dtype = str)
-        if np.all(np.char.find(labels, 'ttHjj') == -1.) and np.all(np.char.find(labels, 'ttbbbb') == -1.):
-            continue
+        # if np.all(np.char.find(labels, 'ttHjj') == -1.) and np.all(np.char.find(labels, 'ttbbbb') == -1.):
+        #     continue
+
+        if np.all(~np.isin(labels, ['ttHjj', 'ttbbbb', 'ttHZ', 'ttVV'])): continue
         
         signal_yields = 0
         background_yields = 0
         for decay in decays:
             if 'ttHH '+decay in labels:
-                signal_yields += lumi*xs_ttHH*xs_decays[decay]*len(selected_events.loc['ttHH '+decay])/n_events
+                signal_yields += lumi*xs_ttHH*len(selected_events.loc['ttHH'])/n_events
             if 'ttHjj '+decay in labels:
-                background_yields += lumi*xs_ttHjj*xs_decays[decay]*len(selected_events.loc['ttHjj '+decay])/n_events
+                background_yields += lumi*xs_ttHjj*len(selected_events.loc['ttHjj'])/n_events
+            if 'ttHZ '+decay in labels:
+                background_yields += lumi*xs_ttHZ*len(selected_events.loc['ttHZ'])/n_events
+            if 'ttVV '+decay in labels:
+                background_yields += lumi*xs_ttVV*len(selected_events.loc['ttVV'])/n_events
             if 'ttbbbb '+decay in labels:
-                background_yields += lumi*xs_ttHjj*xs_decays[decay]*len(selected_events.loc['ttbbbb '+decay])/n_events
+                background_yields += lumi*xs_ttbbbb*len(selected_events.loc['ttbbbb'])/n_events
 
         if background_yields == 0: continue
         significance.loc[event_type, group] = signal_yields/background_yields**0.5
