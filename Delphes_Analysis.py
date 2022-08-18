@@ -892,139 +892,139 @@ events.to_csv('Results_analysis_{}.csv'.format(''.join(map(str, analyses))))
 
 
 #%%
-cdict = {   'dark pink': '#F2385A',
-            'dark blue': '#343844',
-            'dark turquoise': '#36B1Bf',
-            'light turquoise': '#4AD9D9',
-            'off white': '#E9F1DF',
-            'dark yellow': '#FDC536',
-            'light green': '#BCD979',
-            'dark green': '#9DAD6F',
-            'lilac': 'BD93D8'}
-colours = list(cdict.values())
-hist_kwargs = pd.DataFrame({
-        'cutflows': ['cutflow'],
-        'nJets': ['number of jets (j)'],
-        'nBjets': ['number of bjets (b)'],
-        'nNotbjets': ['number of other jets (nb)'],
-        'yields': ['yields per number of bjets (b)'],
-        'pT_1': [r'$p_T$ of $j_1$'],
-        'eta_1': [r'$\eta$ of $j_1$'],
-        'pT_2': [r'$p_T$ of $j_2$'],
-        'eta_2': [r'$\eta$ of $j_2$'],
-        'pT_3': [r'$p_T$ of $j_3$'],
-        'eta_3': [r'$\eta$ of $j_3$'],
-        'pT_4': [r'$p_T$ of $j_4$'],
-        'eta_4': [r'$\eta$ of $j_4$'],
-        'pT_5': [r'$p_T$ of $j_5$'],
-        'eta_5': [r'$\eta$ of $j_5$'],
-        'pT_6': [r'$p_T$ of $j_6$'],
-        'eta_6': [r'$\eta$ of $j_6$'],
-        'x_HH': [r'$\chi^2_{HH}$'],
-        'x_HZ': [r'$\chi^2_{HZ}$'],
-        'x_ZZ': [r'$\chi^2_{ZZ}$'],
-        'm_12': [r'$m_{bb, 12}$'],
-        'm_34': [r'$m_{bb, 34}$'],
-        'm_56': [r'$m_{jj, 56}$'],
-        'm_HZ_1': [r'$m_{HZ, 12}$'],
-        'm_HZ_2': [r'$m_{HZ, 34}$'],
-        'm_ZZ_1': [r'$m_{ZZ, 12}$'],
-        'm_ZZ_2': [r'$m_{ZZ, 34}$'],
-        'dR_12': [r'$\Delta R_{bb, 12}$'],
-        'dR_34': [r'$\Delta R_{bb, 34}$'],
-        'dR_56': [r'$\Delta R_{jj, 56}$'],
-        'dEta_12': [r'$\Delta\eta_{bb, 12}$'],
-        'dEta_34': [r'$\Delta\eta_{bb, 34}$'],
-        'dEta_56': [r'$\Delta\eta_{jj, 56}$'],
-        'dPhi_12': [r'$\Delta\phi_{bb, 12}$'],
-        'dPhi_34': [r'$\Delta\phi_{bb, 34}$'],
-        'dPhi_56': [r'$\Delta\phi_{jj, 56}$'],
-        'pT_12': [r'$p_{T, bb, 12}$'],
-        'pT_34': [r'$p_{T, bb, 34}$'],
-        'pT_56': [r'$p_{T, jj, 56}$'],
-        'xWt1': [r'$X_{Wt}$'],
-        'xH1': [r'$X_{H}$'],
-        'xZ1': [r'$X_{Z}$'],
-        'm_1234': [r'$m_{4j, 1234}$'],
-        'm_1256': [r'$m_{4j, 1256}$'],
-        'm_3456': [r'$m_{4j, 3456}$'],
-        'm_HZ': [r'$m_{4j, HZ}$'],
-        'm_ZZ': [r'$m_{4j, ZZ}$'],
-        'dR_1234': [r'$\Delta R_{4j, 1234}$'],
-        'dR_1256': [r'$\Delta R_{4j, 1256}$'],
-        'dR_3456': [r'$\Delta R_{4j, 3456}$'],
-        'lep_pt': [r'lepton $p_T$'],
-        'Event.HT': [r'$HT$ event'],
-        'HT_contents': [r'$HT$ jets + leptons'],
-        'HT_j': [r'$HT$ jets'],
-        'HT_b': [r'$HT$ bjets'],
-        'm_bb_min': [r'$m_{bb, min}$'],
-        'm_bb_mean': [r'$m_{bb, mean}$'],
-        'm_bb_max': [r'$m_{bb, max}$'],
-        'm_jj_min': [r'$m_{jj, min}$'],
-        'm_jj_mean': [r'$m_{jj, mean}$'],
-        'm_jj_max': [r'$m_{jj, max}$'],
-        'dEta_bb_min': [r'$\Delta\eta_{bb, min}$'],
-        'dEta_bb_mean': [r'$\Delta\eta_{bb, mean}$'],
-        'dEta_bb_max': [r'$\Delta\eta_{bb, max}$'],
-        'dEta_jj_min': [r'$\Delta\eta_{jj, min}$'],
-        'dEta_jj_mean': [r'$\Delta\eta_{jj, mean}$'],
-        'dEta_jj_max': [r'$\Delta\eta_{jj, max}$'],
-        'dR_bb_min': [r'$\Delta R_{bb, min}$'],
-        'dR_bb_mean': [r'$\Delta R_{bb, mean}$'],
-        'dR_bb_max': [r'$\Delta R_{bb, max}$'],
-        'dR_jj_min': [r'$\Delta R_{jj, min}$'],
-        'dR_jj_mean': [r'$\Delta R_{jj, mean}$'],
-        'dR_jj_max': [r'$\Delta R_{jj, max}$'],
-        'Sphere': [r'$S$'],
-        'Aplanar': [r'$A$'],
-        'C_value': [r'$C$ value'],
-        'D_value': [r'$D$ value'],
-        # 'bb_12_pT_dR_2D': [r'$p_{T, bb, 12}$', r'$\Delta R_{bb, 12}$'],
-        # 'bb_34_pT_dR_2D': [r'$p_{T, bb, 34}$', r'$\Delta R_{bb, 34}$'],
-        # 'bb_56_pT_dR_2D': [r'$p_{T, bb, 56}$', r'$\Delta R_{bb, 56}$']
-        }, index = ['xlabel'])
+# cdict = {   'dark pink': '#F2385A',
+#             'dark blue': '#343844',
+#             'dark turquoise': '#36B1Bf',
+#             'light turquoise': '#4AD9D9',
+#             'off white': '#E9F1DF',
+#             'dark yellow': '#FDC536',
+#             'light green': '#BCD979',
+#             'dark green': '#9DAD6F',
+#             'lilac': 'BD93D8'}
+# colours = list(cdict.values())
+# hist_kwargs = pd.DataFrame({
+#         'cutflows': ['cutflow'],
+#         'nJets': ['number of jets (j)'],
+#         'nBjets': ['number of bjets (b)'],
+#         'nNotbjets': ['number of other jets (nb)'],
+#         'yields': ['yields per number of bjets (b)'],
+#         'pT_1': [r'$p_T$ of $j_1$'],
+#         'eta_1': [r'$\eta$ of $j_1$'],
+#         'pT_2': [r'$p_T$ of $j_2$'],
+#         'eta_2': [r'$\eta$ of $j_2$'],
+#         'pT_3': [r'$p_T$ of $j_3$'],
+#         'eta_3': [r'$\eta$ of $j_3$'],
+#         'pT_4': [r'$p_T$ of $j_4$'],
+#         'eta_4': [r'$\eta$ of $j_4$'],
+#         'pT_5': [r'$p_T$ of $j_5$'],
+#         'eta_5': [r'$\eta$ of $j_5$'],
+#         'pT_6': [r'$p_T$ of $j_6$'],
+#         'eta_6': [r'$\eta$ of $j_6$'],
+#         'x_HH': [r'$\chi^2_{HH}$'],
+#         'x_HZ': [r'$\chi^2_{HZ}$'],
+#         'x_ZZ': [r'$\chi^2_{ZZ}$'],
+#         'm_12': [r'$m_{bb, 12}$'],
+#         'm_34': [r'$m_{bb, 34}$'],
+#         'm_56': [r'$m_{jj, 56}$'],
+#         'm_HZ_1': [r'$m_{HZ, 12}$'],
+#         'm_HZ_2': [r'$m_{HZ, 34}$'],
+#         'm_ZZ_1': [r'$m_{ZZ, 12}$'],
+#         'm_ZZ_2': [r'$m_{ZZ, 34}$'],
+#         'dR_12': [r'$\Delta R_{bb, 12}$'],
+#         'dR_34': [r'$\Delta R_{bb, 34}$'],
+#         'dR_56': [r'$\Delta R_{jj, 56}$'],
+#         'dEta_12': [r'$\Delta\eta_{bb, 12}$'],
+#         'dEta_34': [r'$\Delta\eta_{bb, 34}$'],
+#         'dEta_56': [r'$\Delta\eta_{jj, 56}$'],
+#         'dPhi_12': [r'$\Delta\phi_{bb, 12}$'],
+#         'dPhi_34': [r'$\Delta\phi_{bb, 34}$'],
+#         'dPhi_56': [r'$\Delta\phi_{jj, 56}$'],
+#         'pT_12': [r'$p_{T, bb, 12}$'],
+#         'pT_34': [r'$p_{T, bb, 34}$'],
+#         'pT_56': [r'$p_{T, jj, 56}$'],
+#         'xWt1': [r'$X_{Wt}$'],
+#         'xH1': [r'$X_{H}$'],
+#         'xZ1': [r'$X_{Z}$'],
+#         'm_1234': [r'$m_{4j, 1234}$'],
+#         'm_1256': [r'$m_{4j, 1256}$'],
+#         'm_3456': [r'$m_{4j, 3456}$'],
+#         'm_HZ': [r'$m_{4j, HZ}$'],
+#         'm_ZZ': [r'$m_{4j, ZZ}$'],
+#         'dR_1234': [r'$\Delta R_{4j, 1234}$'],
+#         'dR_1256': [r'$\Delta R_{4j, 1256}$'],
+#         'dR_3456': [r'$\Delta R_{4j, 3456}$'],
+#         'lep_pt': [r'lepton $p_T$'],
+#         'Event.HT': [r'$HT$ event'],
+#         'HT_contents': [r'$HT$ jets + leptons'],
+#         'HT_j': [r'$HT$ jets'],
+#         'HT_b': [r'$HT$ bjets'],
+#         'm_bb_min': [r'$m_{bb, min}$'],
+#         'm_bb_mean': [r'$m_{bb, mean}$'],
+#         'm_bb_max': [r'$m_{bb, max}$'],
+#         'm_jj_min': [r'$m_{jj, min}$'],
+#         'm_jj_mean': [r'$m_{jj, mean}$'],
+#         'm_jj_max': [r'$m_{jj, max}$'],
+#         'dEta_bb_min': [r'$\Delta\eta_{bb, min}$'],
+#         'dEta_bb_mean': [r'$\Delta\eta_{bb, mean}$'],
+#         'dEta_bb_max': [r'$\Delta\eta_{bb, max}$'],
+#         'dEta_jj_min': [r'$\Delta\eta_{jj, min}$'],
+#         'dEta_jj_mean': [r'$\Delta\eta_{jj, mean}$'],
+#         'dEta_jj_max': [r'$\Delta\eta_{jj, max}$'],
+#         'dR_bb_min': [r'$\Delta R_{bb, min}$'],
+#         'dR_bb_mean': [r'$\Delta R_{bb, mean}$'],
+#         'dR_bb_max': [r'$\Delta R_{bb, max}$'],
+#         'dR_jj_min': [r'$\Delta R_{jj, min}$'],
+#         'dR_jj_mean': [r'$\Delta R_{jj, mean}$'],
+#         'dR_jj_max': [r'$\Delta R_{jj, max}$'],
+#         'Sphere': [r'$S$'],
+#         'Aplanar': [r'$A$'],
+#         'C_value': [r'$C$ value'],
+#         'D_value': [r'$D$ value'],
+#         # 'bb_12_pT_dR_2D': [r'$p_{T, bb, 12}$', r'$\Delta R_{bb, 12}$'],
+#         # 'bb_34_pT_dR_2D': [r'$p_{T, bb, 34}$', r'$\Delta R_{bb, 34}$'],
+#         # 'bb_56_pT_dR_2D': [r'$p_{T, bb, 56}$', r'$\Delta R_{bb, 56}$']
+#         }, index = ['xlabel'])
 
-with PdfPages('Results_{}.pdf'.format(''.join(map(str, analyses)))) as pdf:
-    for key in hist_kwargs.columns.values:
-        hist = hist_dict[key]
-        if '2D' in key:
-            fig, axs = plt.subplots(nrows = nsets, figsize = (7, nsets*7))
-            for j in range(nsets):
-                if np.array(hist.data[j]).ndim != 2: continue
-                heights, xedges, yedges = hist.get(j)
-                xv, yv = np.meshgrid(xedges, yedges)
-                axs[j].pcolormesh(xv, yv, heights.T, cmap = 'plasma')
-                axs[j].set_xlabel(hist_kwargs.loc['xlabel', key])
-                axs[j].set_ylabel(hist_kwargs.loc['ylabel', key])
+# with PdfPages('Results_{}.pdf'.format(''.join(map(str, analyses)))) as pdf:
+#     for key in hist_kwargs.columns.values:
+#         hist = hist_dict[key]
+#         if '2D' in key:
+#             fig, axs = plt.subplots(nrows = nsets, figsize = (7, nsets*7))
+#             for j in range(nsets):
+#                 if np.array(hist.data[j]).ndim != 2: continue
+#                 heights, xedges, yedges = hist.get(j)
+#                 xv, yv = np.meshgrid(xedges, yedges)
+#                 axs[j].pcolormesh(xv, yv, heights.T, cmap = 'plasma')
+#                 axs[j].set_xlabel(hist_kwargs.loc['xlabel', key])
+#                 axs[j].set_ylabel(hist_kwargs.loc['ylabel', key])
 
-        else: 
-            fig, ax = plt.subplots(figsize = (7, 7))
-            if key in ['cutflows', 'yields']: 
-                get = hist.get
-            else: 
-                get = hist.get_normalised_idiot
-            divider = make_axes_locatable(ax)
-            ax_ratio = divider.append_axes("bottom", 1.2, pad=0.1, sharex=ax)
-            ax.xaxis.set_tick_params(labelbottom=False)
-            for j in range(nsets):
-                # if len(hist.data[j]) == 0: continue
-                heights, bin_edges = get(j)
-                ax.stairs(heights, bin_edges, color = colours[j], 
-                        alpha = 0.6, label = keys_unique[j])
-                ax_ratio.stairs(heights/get(0)[0], bin_edges, color = colours[j], 
-                        alpha = 0.6, label = keys_unique[j])
-                ax_ratio.set_xlabel(hist_kwargs.loc['xlabel', key])
-                if key not in ['xWt1']: ax.set_yscale('log')
-                ax.legend()
+#         else: 
+#             fig, ax = plt.subplots(figsize = (7, 7))
+#             if key in ['cutflows', 'yields']: 
+#                 get = hist.get
+#             else: 
+#                 get = hist.get_normalised_idiot
+#             divider = make_axes_locatable(ax)
+#             ax_ratio = divider.append_axes("bottom", 1.2, pad=0.1, sharex=ax)
+#             ax.xaxis.set_tick_params(labelbottom=False)
+#             for j in range(nsets):
+#                 # if len(hist.data[j]) == 0: continue
+#                 heights, bin_edges = get(j)
+#                 ax.stairs(heights, bin_edges, color = colours[j], 
+#                         alpha = 0.6, label = keys_unique[j])
+#                 ax_ratio.stairs(heights/get(0)[0], bin_edges, color = colours[j], 
+#                         alpha = 0.6, label = keys_unique[j])
+#                 ax_ratio.set_xlabel(hist_kwargs.loc['xlabel', key])
+#                 if key not in ['xWt1']: ax.set_yscale('log')
+#                 ax.legend()
 
-            if key in ['m_12', 'm_34', 'm_56', 'm_HZ_1']:
-                ax.axvline(125, c = 'k', lw = 1)
-            if key in ['m_HZ_2', 'm_ZZ_1', 'm_ZZ_2']:
-                ax.axvline(91, c = 'k', lw = 1)
+#             if key in ['m_12', 'm_34', 'm_56', 'm_HZ_1']:
+#                 ax.axvline(125, c = 'k', lw = 1)
+#             if key in ['m_HZ_2', 'm_ZZ_1', 'm_ZZ_2']:
+#                 ax.axvline(91, c = 'k', lw = 1)
 
-        pdf.savefig(fig)
-        plt.show()
+#         pdf.savefig(fig)
+#         plt.show()
 
 
 # %%
