@@ -92,11 +92,6 @@ class FourMomentum():
     def deltaR(self, other):
         return (self.deltaEta(other)**2 + self.deltaPhi(other)**2)**0.5
 
-    def M_eigvals(self):
-        M = np.outer(self.p, self.p)
-        M_normed = 1/np.sum(self.p) * np.sum(1/self.p) * M
-        return np.linalg.eigvalsh(M_normed)
-
 class Histogram1D():
 
     def __init__(self, bin_edges, nsets = 1):
@@ -624,7 +619,12 @@ def Analysis(jets, free_leptons, events, event_type, hist_dict, layer, nbatch):
         selected_events.loc[name, 'HT_b'] = np.sum([bjet_momenta[i].PT for i in range(nbjets)])
         selected_events.loc[name, 'HT_j'] = np.sum([jet_momenta[i].PT for i in range(njets)])
         
-        eigen_values = sum(jet_momenta).M_eigvals()
+        summed_norm = np.sum(np.linalg.norm(momentum.p) for momentum in jet_momenta)
+        summed_matrices = np.sum(np.outer(momentum.p, momentum.p)/np.linalg.norm(momentum.p) for momentum in jet_momenta)
+        try:
+            eigen_values = np.flip(np.linalg.eigvalsh(summed_matrices/summed_norm))
+        except np.linalg.LinAlgError:
+            eigen_values = [np.nan, np.nan, np.nan]
         selected_events.loc[name, 'Sphere'] = 1.5*(eigen_values[1] + eigen_values[2])
         selected_events.loc[name, 'Aplanar'] = 1.5*eigen_values[2]
         selected_events.loc[name, 'C_value'] = 3*(eigen_values[0]*eigen_values[1] + eigen_values[0]*eigen_values[2] + eigen_values[1]*eigen_values[2])
@@ -848,13 +848,17 @@ decays = ['fullhad', 'semilep', 'dilep']
 file_dir = '/eos/atlas/user/s/smanzoni/ttHH_ntuples/'
 file_path_ttHH = [file_dir+'ttHH_1M_events.root:Delphes', file_dir+'ttHH_1M_events_1.root:Delphes']
 file_path_ttHZ = [file_dir+'ttHZ_1M_events.root:Delphes', file_dir+'ttHZ_1M_events_1.root:Delphes']
-file_path_ttVV = [file_dir+'ttVV_1M_events.root:Delphes']
+# file_path_ttVV = [file_dir+'ttVV_1M_events.root:Delphes']
 file_path_ttHjj = [file_dir+'ttHHjj_1M_events.root:Delphes', file_dir+'ttHHjj_1M_events_1.root:Delphes']
 file_path_ttbbbb = [file_dir+'tt4b_1M_events.root:Delphes', file_dir+'tt4b_1M_events_1.root:Delphes']
+file_path_tt = [file_dir+'tt_300k_events.root:Delphes']
+file_path_tttt = [file_dir+'tttt_300k_events.root:Delphes']
+file_path_ttZZ = [file_dir+'ttZZ_300k_events.root:Delphes']
+file_path_ttZjj = [file_dir+'ttZjj_300k_events.root:Delphes']
 # file_path_ttbbbb = ['/Users/renske/Documents/CERN/ttHH/ttbbbb_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
 
-# files = [*file_path_ttHjj, *file_path_ttbbbb, *file_path_ttHZ, *file_path_ttHH, *file_path_ttVV]
-files = ['/eos/user/r/rewierda/tthh/ttHH_10k_dilep_btagged/tag_1_delphes_events.root:Delphes']
+files = [*file_path_ttHH, *file_path_ttHZ, *file_path_ttHjj, *file_path_ttZZ, *file_path_ttZjj, *file_path_ttbbbb, *file_path_tttt, *file_path_tt]
+# files = ['/eos/user/r/rewierda/tthh/ttHH_10k_dilep_btagged/tag_1_delphes_events.root:Delphes']
 
 n_events = 1E6
 
@@ -869,9 +873,10 @@ xs_ttHZ = 1.2*0.575
 xs_ttVV = 11.2
 xs_ttbbbb = 370
 
-nsets = 1
+nsets = 8
 # keys = [*['ttbbbb {}'.format(decay) for decay in decays], *['ttHjj {}'.format(decay) for decay in decays], *['ttHH {}'.format(decay) for decay in decays]]
-keys = [*['ttHjj']*2, *['ttbbbb']*2, *['ttHZ']*2, *['ttHH']*2, *['ttHVV']*1]
+keys = [*['ttHH']*2, *['ttHZ']*2, *['ttHjj']*2, *['ttZZ']*1, *['ttZjj']*1, *['ttbbbb']*2, *['tttt']*1, *['tt']*1]
+layers = [*[0]*2, *[1]*2, *[2]*2, *[3]*1, *[4]*1, *[5]*2, *[6]*1, *[7]*1]
 analyses = [0, 1, 2]
 
 hist_dict = None
@@ -879,7 +884,7 @@ event_list = []
 keys_passed = []
 
 for i in range(len(files)):
-    hist_dict, events = Analyse_file(files[i], layer = i//2, analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500)
+    hist_dict, events = Analyse_file(files[i], layer = layers[i], analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500)
     if len(events) != 0:
         event_list.append(events)
         keys_passed.append(keys[i])
