@@ -69,13 +69,7 @@ class FourMomentum():
         return "FourMomentum([{}, {}, {}, {}])".format(self.E, *self.p)
 
     def __add__(self, other):
-        if type(other) == int:
-            return FourMomentum([self.E + other, *(self.p + other)])
-        else:
-            return FourMomentum([self.E + other.E, *(self.p + other.p)])
-
-    def __radd__(self, other_int):
-        return self.__add__(other_int)
+        return FourMomentum([self.E + other.E, *(self.p + other.p)])
 
     def __sub__(self, other):
         return FourMomentum([self.E - other.E, *(self.p - other.p)])
@@ -92,47 +86,48 @@ class FourMomentum():
     def deltaR(self, other):
         return (self.deltaEta(other)**2 + self.deltaPhi(other)**2)**0.5
 
-class Histogram1D():
+""" class Histogram():
 
     def __init__(self, bin_edges, nsets = 1):
-        # if bin_edges.ndim == 1:
-        #     bin_edges.reshape(1, len(bin_edges))
+        if bin_edges.ndim == 1:
+            bin_edges.reshape(1, len(bin_edges))
         shape = np.array(bin_edges.shape)
         self.__bin_edges = np.full((nsets, *shape), bin_edges)
         self.__hist_heights = np.zeros((nsets, *shape - 1))
+        print(self.__bin_edges.shape)
 
     def fill(self, values, layer):
-        # if values.ndim == 1:
-            # values = values.reshape(len(values), 1)
-        hist = np.histogram(values, bins = self.__bin_edges[layer])
+        if values.ndim == 1:
+            values = values.reshape(len(values), 1)
+        hist = np.histogramdd(values, bins = self.__bin_edges[layer])
         self.__hist_heights[layer] += hist[0]
 
     def integral(self):
         return np.sum(self.__hist_heights * np.diff(self.__bin_edges), axis = tuple(range(-self.__hist_heights.ndim + 1, 0)))
 
+    def get(self):
+        return self.__bin_edges, self.__hist_heights
+
+    def get_normalised_idiot(self): # Used to be get_normalised, but I use the phrase "get (...) idiot" way too much, so here we are
+        integral = np.full(tuple(reversed(self.__hist_heights.shape)), self.integral()).T
+        return self.__bin_edges, self.__hist_heights/integral """
+
+class Histogram1D():
+
+    def __init__(self, bin_edges, nsets = 1):
+        self.bin_edges = bin_edges
+        self.data = [[] for i in range(nsets)]
+
+    def fill(self, values, layer):
+        self.data[layer].extend(values.tolist())
+
     def get(self, layer):
-        return self.__hist_heights[layer], self.__bin_edges[layer]
+        hist = np.histogram(self.data[layer], bins = self.bin_edges)
+        return hist
 
     def get_normalised_idiot(self, layer): # Used to be get_normalised, but I use the phrase "get (...) idiot" way too much, so here we are
-        integral = np.full(tuple(reversed(self.__hist_heights.shape)), self.integral()).T
-        return self.__hist_heights[layer]/integral, self.__bin_edges[layer]
-
-# class Histogram1D():
-
-#     def __init__(self, bin_edges, nsets = 1):
-#         self.bin_edges = bin_edges
-#         self.data = [[] for i in range(nsets)]
-
-#     def fill(self, values, layer):
-#         self.data[layer].extend(values.tolist())
-
-#     def get(self, layer):
-#         hist = np.histogram(self.data[layer], bins = self.bin_edges)
-#         return hist
-
-#     def get_normalised_idiot(self, layer): # Used to be get_normalised, but I use the phrase "get (...) idiot" way too much, so here we are
-#         hist = np.histogram(self.data[layer], bins = self.bin_edges, density = True)
-#         return hist
+        hist = np.histogram(self.data[layer], bins = self.bin_edges, density = True)
+        return hist
 
 class Histogram2D():
 
@@ -194,14 +189,12 @@ def Open_file(path, reco = True):
     ht_data = file.arrays(filter_name = ht_keys)
     event_data = aw.zip([event_data, ht_data])
 
-    n_tot = len(event_data)
-
     file.close()
 
     if reco == True:
-        return n_tot, electron_data, muon_data, jet_data, event_data
+        return electron_data, muon_data, jet_data, event_data
     else:
-        return n_tot, particle_data, jet_data, event_data
+        return particle_data, jet_data, event_data
 
 
 def Find_free_particles(particles, contents_dataframe):
@@ -314,9 +307,6 @@ def Select_contents(particle_data, jet_data, event_data, arange, reco = True):
     events.loc[events['nLeptons'] == 1, 'Event_type'] = 1
     events.loc[events['nLeptons'] == 2, 'Event_type'] = 2 
 
-    # General jet requirements (inclusive)
-    events.loc[np.logical_and(events['nJets'] >= 6, events['nBjets'] >= 4), 'Bjet_group'] = 1
-
     # Requirements on number of jets per event type (2, 1, 0). First column is
     # number of bjets, second is number of other jets
     reqs = np.array([[[4, 2], [5, 1], [6, 0]],
@@ -357,18 +347,6 @@ def Jet_combinations(ls, jet_momenta, target_mass_1, target_mass_2):
             inds[1] = b
             inds[2] = c
             inds[3] = d
-
-    if target_mass_1 != target_mass_2:
-        for a, b, c, d in jet_combos:
-            mX_12 = (jet_momenta[c] + jet_momenta[d]).mass()
-            mX_34 = (jet_momenta[a] + jet_momenta[b]).mass()
-            chi_squared = 10*(1 - target_mass_1/mX_12)**2 + 10*(1 - target_mass_2/mX_34)**2
-            if chi_squared < dm:
-                dm = chi_squared
-                inds[0] = c
-                inds[1] = d
-                inds[2] = a
-                inds[3] = b
 
     if jet_momenta[inds[0]].PT < jet_momenta[inds[1]].PT:
         inds = [inds[1], inds[0], inds[2], inds[3]]
@@ -463,14 +441,19 @@ def Make_Higgs_bosons(jet_momenta, nbjets):
 
     mass_HZ = [(jet_momenta[inds_HZ[2*i]] + jet_momenta[inds_HZ[2*i + 1]]).mass() for i in [0, 1]]
     mass_ZZ = [(jet_momenta[inds_ZZ[2*i]] + jet_momenta[inds_ZZ[2*i + 1]]).mass() for i in [0, 1]]
-    mass_HZ_comp = sum(jet_momenta[inds_HZ]).mass()
-    mass_ZZ_comp = sum(jet_momenta[inds_ZZ]).mass()
 
-    mass_HZs = [*mass_HZ, mass_HZ_comp]
-    mass_ZZs = [*mass_ZZ, mass_ZZ_comp]
+    mass_XX = [mass_ab, mass_HZ, mass_ZZ]
     chi_XX = [chi_HH, chi_HZ, chi_ZZ]
 
-    return chi_XX, mass_ab, mass_HZs, mass_ZZs, deltaR_ab, deltaEta, deltaPhi, pT_ab, mass_abcd, deltaR_abcd, combos
+    ## Summary statistics
+    combis = combinations(list(range(6)), 2)
+    masses = np.array([(jet_momenta[a] + jet_momenta[b]).mass() for a, b in combis])
+    mass_stats = [masses.min(), masses.mean(), masses.max()]
+    combis = combinations(list(range(6)), 2)
+    deltaEtas = np.array([jet_momenta[a].deltaEta(jet_momenta[b]) for a, b in combis])
+    deltaEta_stats = [deltaEtas.min(), deltaEtas.mean(), deltaEtas.max()]
+
+    return chi_XX, mass_XX, deltaR_ab, deltaEta, deltaPhi, pT_ab, mass_abcd, deltaR_abcd, mass_stats, deltaEta_stats, combos
 
 
 def SingleTopness(jet_momenta, bjet_combos):
@@ -490,33 +473,6 @@ def SingleTopness(jet_momenta, bjet_combos):
     if len(xs) == 0: return np.nan
     else: return np.sort(xs)[0]
 
-
-def SingleHiggsness(jet_momenta, bjet_combos):
-    
-    bjet_indices = np.array(bjet_combos).flatten()
-    ls = list(range(len(jet_momenta[bjet_indices])))
-    xs = []
-    for a, b in combinations(ls, 2):
-        mH = (jet_momenta[a] + jet_momenta[b]).mass()
-        xH1 = 10*(1 -  125/mH)
-        xs.append(abs(xH1))
-
-    if len(xs) == 0: return np.nan
-    else: return np.sort(xs)[0]
-
-
-def SingleZness(jet_momenta, bjet_combos):
-    
-    bjet_indices = np.array(bjet_combos).flatten()
-    ls = list(range(len(jet_momenta[bjet_indices])))
-    xs = []
-    for a, b in combinations(ls, 2):
-        mZ = (jet_momenta[a] + jet_momenta[b]).mass()
-        xZ1 = 10*(1 -  125/mZ)
-        xs.append(abs(xZ1))
-
-    if len(xs) == 0: return np.nan
-    else: return np.sort(xs)[0]
 
 
 def Analysis(jets, free_leptons, events, event_type, hist_dict, layer, nbatch): 
@@ -547,14 +503,15 @@ def Analysis(jets, free_leptons, events, event_type, hist_dict, layer, nbatch):
     hist_dict['cutflows'].fill(np.full(len(selected_events), 1), layer = layer)
 
     # Fill the histograms for the number of jets before any further selection
-    hist_dict['nJets'].fill(selected_events['nJets'].to_numpy(), layer = layer)
-    hist_dict['nBjets'].fill(selected_events['nBjets'].to_numpy(), layer = layer)
-    hist_dict['nNotbjets'].fill(selected_events['nNotbjets'].to_numpy(), layer = layer)
+    hist_dict['n_jets'].fill(selected_events['nJets'].to_numpy(), layer = layer)
+    hist_dict['n_bjets'].fill(selected_events['nBjets'].to_numpy(), layer = layer)
+    hist_dict['n_notbjets'].fill(selected_events['nNotbjets'].to_numpy(), layer = layer)
 
     selected_events = selected_events[selected_events['Bjet_group'] > 0]
     if len(selected_events) == 0:
         return events
     hist_dict['cutflows'].fill(np.full(len(selected_events), 2), layer = layer)
+
     hist_dict['yields'].fill(selected_events['Bjet_group'].to_numpy(), layer = layer)
 
     # Select corresponding leptons, .isin checks which indices of free leptons are also
@@ -567,81 +524,94 @@ def Analysis(jets, free_leptons, events, event_type, hist_dict, layer, nbatch):
     bjets = jets.groupby(['entry']).nth(list(range(6)))
     bjet_mask = bjets.index.get_level_values(0).isin(selected_events.index.get_level_values(0))
     # Group the bjets by 'entry', which is the first index of the MultiIndex. This gives access
-    # to the nth member function for easy selection of the leading and subleading jets.
+    # to the nth member function for easy selection of the leeading and subleading jets.
     selected_bjets = bjets[bjet_mask].groupby(['entry'])
     for i in range(6):
+        hist_dict['b_{}_pt'.format(i+1)].fill(selected_bjets.nth(i)['Jet.PT'].to_numpy(), layer = layer)
+        hist_dict['b_{}_eta'.format(i+1)].fill(selected_bjets.nth(i)['Jet.Eta'].abs().to_numpy(), layer = layer)
+
         selected_events.loc[:, 'pT_{}'.format(i+1)] = selected_bjets.nth(i)['Jet.PT']
         selected_events.loc[:, 'eta_{}'.format(i+1)] = selected_bjets.nth(i)['Jet.Eta']
-        selected_events.loc[:, 'bTag_{}'.format(i+1)] = selected_bjets.nth(i)['Jet.BTag']
 
     jet_mask = jets.index.get_level_values(0).isin(selected_events.index.get_level_values(0))
     selected_jets = jets[jet_mask].groupby(['entry'])
     selected_contents = pd.concat((jets.loc[jet_mask, 'Jet.PT'], free_leptons.loc[lepton_mask, 'Lepton.PT'])).groupby(['entry'])
-    selected_events.loc[:, 'HT_contents'] = selected_contents.sum().to_numpy()
+    hist_dict['HT_total'].fill(selected_events['Event.HT'].to_numpy(), layer = layer)
+    hist_dict['HT_select'].fill(selected_contents.sum().to_numpy(), layer = layer)
+    selected_events.loc[:, 'HT_select'] = selected_contents.sum().to_numpy()
+
 
     for name, group in selected_jets:
         nbjets = int(selected_events.loc[name, 'nBjets'].item())
-        njets = int(selected_events.loc[name, 'nJets'].item())
 
+        bjets = group.iloc[:6]
         kinematics = list(Make_Higgs_bosons(group['Jet.FourMomentum'].to_numpy(), nbjets))
         selected_events.loc[name, ['x_HH', 'x_HZ', 'x_ZZ']] = kinematics[0]
-        selected_events.loc[name, ['m_12', 'm_34', 'm_56']] = kinematics[1]
-        selected_events.loc[name, ['m_HZ_1', 'm_HZ_2', 'm_HZ']] = kinematics[2]
-        selected_events.loc[name, ['m_ZZ_1', 'm_ZZ_2', 'm_ZZ']] = kinematics[3]
-        selected_events.loc[name, ['dR_12', 'dR_34', 'dR_56']] = kinematics[4]
-        selected_events.loc[name, ['dEta_12', 'dEta_34', 'dEta_56']] = kinematics[5]
-        selected_events.loc[name, ['dPhi_12', 'dPhi_34', 'dPhi_56']] = kinematics[6]
-        selected_events.loc[name, ['pT_12', 'pT_34', 'pT_56']] = kinematics[7]
-        selected_events.loc[name, ['m_1234', 'm_1256', 'm_3456']] = kinematics[8]
-        selected_events.loc[name, ['dR_1234', 'dR_1256', 'dR_3456']] = kinematics[9]
+        selected_events.loc[name, ['m_12', 'm_34', 'm_56']] = kinematics[1][0]
+        selected_events.loc[name, ['m_HZ_1', 'm_HZ_2']] = kinematics[1][1]
+        selected_events.loc[name, ['m_ZZ_1', 'm_ZZ_2']] = kinematics[1][2]
+        selected_events.loc[name, ['dR_12', 'dR_34', 'dR_56']] = kinematics[2]
+        selected_events.loc[name, ['dEta_12', 'dEta_34', 'dEta_56']] = kinematics[3]
+        selected_events.loc[name, ['dPhi_12', 'dPhi_34', 'dPhi_56']] = kinematics[4]
+        selected_events.loc[name, ['pT_12', 'pT_34', 'pT_56']] = kinematics[5]
+        selected_events.loc[name, 'm_1234'] = kinematics[6][0]
+        selected_events.loc[name, ['dR_1234', 'dR_1256', 'dR_3456']] = kinematics[7]
+        selected_events.loc[name, ['m_min', 'm_mean', 'm_max']] = kinematics[8]
+        selected_events.loc[name, ['dEta_min', 'dEta_mean', 'dEta_max']] = kinematics[9]
 
-        selected_events.loc[name, 'xWt1'] = SingleTopness(group['Jet.FourMomentum'].to_numpy(), kinematics[10])
-        selected_events.loc[name, 'xH1'] = SingleHiggsness(group['Jet.FourMomentum'].to_numpy(), kinematics[10])
-        selected_events.loc[name, 'xZ1'] = SingleZness(group['Jet.FourMomentum'].to_numpy(), kinematics[10])
-
-        bjets = group.iloc[:nbjets]
-        bjet_momenta = bjets['Jet.FourMomentum'].to_numpy()
-        jet_momenta = group['Jet.FourMomentum'].to_numpy()
-
-        masses_bb = [(bjet_momenta[a] + bjet_momenta[b]).mass() for a, b in combinations(list(range(nbjets)), 2)]
-        masses_jj = [(jet_momenta[a] + jet_momenta[b]).mass() for a, b in combinations(list(range(njets)), 2)]
-        dEtas_bb = [bjet_momenta[a].deltaEta(bjet_momenta[b]) for a, b in combinations(list(range(nbjets)), 2)]
-        dEtas_jj = [jet_momenta[a].deltaEta(jet_momenta[b]) for a, b in combinations(list(range(njets)), 2)]
-        dRs_bb = [bjet_momenta[a].deltaR(bjet_momenta[b]) for a, b in combinations(list(range(nbjets)), 2)]
-        dRs_jj = [jet_momenta[a].deltaR(jet_momenta[b]) for a, b in combinations(list(range(njets)), 2)]
-
-        selected_events.loc[name, ['m_bb_min', 'm_bb_mean', 'm_bb_max']] = [np.min(masses_bb), np.mean(masses_bb), np.max(masses_bb)]
-        selected_events.loc[name, ['m_jj_min', 'm_jj_mean', 'm_jj_max']] = [np.min(masses_jj), np.mean(masses_jj), np.max(masses_jj)]
-        selected_events.loc[name, ['dEta_bb_min', 'dEta_bb_mean', 'dEta_bb_max']] = [np.min(dEtas_bb), np.mean(dEtas_bb), np.max(dEtas_bb)]
-        selected_events.loc[name, ['dEta_jj_min', 'dEta_jj_mean', 'dEta_jj_max']] = [np.min(dEtas_jj), np.mean(dEtas_jj), np.max(dEtas_jj)]
-        selected_events.loc[name, ['dR_bb_min', 'dR_bb_mean', 'dR_bb_max']] = [np.min(dRs_bb), np.mean(dRs_bb), np.max(dRs_bb)]
-        selected_events.loc[name, ['dR_jj_min', 'dR_jj_mean', 'dR_jj_max']] = [np.min(dRs_jj), np.mean(dRs_jj), np.max(dRs_jj)]
-        selected_events.loc[name, 'HT_b'] = np.sum([bjet_momenta[i].PT for i in range(nbjets)])
-        selected_events.loc[name, 'HT_j'] = np.sum([jet_momenta[i].PT for i in range(njets)])
-        
-        summed_norm = np.sum(np.linalg.norm(momentum.p) for momentum in jet_momenta)
-        summed_matrices = np.sum(np.outer(momentum.p, momentum.p)/np.linalg.norm(momentum.p) for momentum in jet_momenta)
-        try:
-            eigen_values = np.flip(np.linalg.eigvalsh(summed_matrices/summed_norm))
-        except np.linalg.LinAlgError:
-            eigen_values = [np.nan, np.nan, np.nan]
-        selected_events.loc[name, 'Sphere'] = 1.5*(eigen_values[1] + eigen_values[2])
-        selected_events.loc[name, 'Aplanar'] = 1.5*eigen_values[2]
-        selected_events.loc[name, 'C_value'] = 3*(eigen_values[0]*eigen_values[1] + eigen_values[0]*eigen_values[2] + eigen_values[1]*eigen_values[2])
-        selected_events.loc[name, 'D_value'] = 27*eigen_values[0]*eigen_values[1]*eigen_values[2]
+        xWt = SingleTopness(group['Jet.FourMomentum'].to_numpy(), kinematics[10])
+        selected_events.loc[name, 'xWt1'] = xWt
 
 
     events.loc[selected_events.index] = selected_events
 
-    excluded = ['Event.CrossSection', 'nLeptons', 'Event_type', 'Bjet_group', 
-                *['bTag_{}'.format(i+1) for i in range(6)], 'nJets', 'nBjets', 'nNotbjets']
-    for key in selected_events.columns[~selected_events.columns.isin(excluded)]:
-        hist_dict[key].fill(selected_events[key].to_numpy(), layer = layer)
+    hist_dict['bb_x_HH'].fill(selected_events['x_HH'].to_numpy(), layer = layer)
+    hist_dict['bb_x_HZ'].fill(selected_events['x_HZ'].to_numpy(), layer = layer)
+    hist_dict['bb_x_ZZ'].fill(selected_events['x_ZZ'].to_numpy(), layer = layer)
 
-    # hist_dict['bb_12_pT_dR_2D'].fill(selected_events[['pT_12', 'dR_12']].to_numpy(), layer = layer)
-    # hist_dict['bb_34_pT_dR_2D'].fill(selected_events[['pT_34', 'dR_34']].to_numpy(), layer = layer)
-    # hist_dict['bb_56_pT_dR_2D'].fill(selected_events[['pT_56', 'dR_56']].to_numpy(), layer = layer)
+    hist_dict['bb_12_mass'].fill(selected_events['m_12'].to_numpy(), layer = layer)
+    hist_dict['bb_34_mass'].fill(selected_events['m_34'].to_numpy(), layer = layer)
+    hist_dict['bb_56_mass'].fill(selected_events['m_56'].to_numpy(), layer = layer)
 
+    hist_dict['bb_HZ_1_mass'].fill(selected_events['m_HZ_1'].to_numpy(), layer = layer)
+    hist_dict['bb_HZ_2_mass'].fill(selected_events['m_HZ_2'].to_numpy(), layer = layer)
+    hist_dict['bb_ZZ_1_mass'].fill(selected_events['m_ZZ_1'].to_numpy(), layer = layer)
+    hist_dict['bb_ZZ_2_mass'].fill(selected_events['m_ZZ_2'].to_numpy(), layer = layer)
+
+    hist_dict['bb_12_dR'].fill(selected_events['dR_12'].to_numpy(), layer = layer)
+    hist_dict['bb_34_dR'].fill(selected_events['dR_34'].to_numpy(), layer = layer)
+    hist_dict['bb_56_dR'].fill(selected_events['dR_56'].to_numpy(), layer = layer)
+
+    hist_dict['bb_12_dEta'].fill(selected_events['dEta_12'].to_numpy(), layer = layer)
+    hist_dict['bb_34_dEta'].fill(selected_events['dEta_34'].to_numpy(), layer = layer)
+    hist_dict['bb_56_dEta'].fill(selected_events['dEta_56'].to_numpy(), layer = layer)
+
+    hist_dict['bb_12_dPhi'].fill(selected_events['dPhi_12'].to_numpy(), layer = layer)
+    hist_dict['bb_34_dPhi'].fill(selected_events['dPhi_34'].to_numpy(), layer = layer)
+    hist_dict['bb_56_dPhi'].fill(selected_events['dPhi_56'].to_numpy(), layer = layer)
+
+    hist_dict['bb_12_pT'].fill(selected_events['pT_12'].to_numpy(), layer = layer)
+    hist_dict['bb_34_pT'].fill(selected_events['pT_34'].to_numpy(), layer = layer)
+    hist_dict['bb_56_pT'].fill(selected_events['pT_56'].to_numpy(), layer = layer)
+
+    hist_dict['xWt1'].fill(selected_events['xWt1'].to_numpy(), layer = layer)
+    hist_dict['4j_1234_mass'].fill(selected_events['m_1234'].to_numpy(), layer = layer)
+
+    hist_dict['4j_1234_dR'].fill(selected_events['dR_1234'].to_numpy(), layer = layer)
+    hist_dict['4j_1256_dR'].fill(selected_events['dR_1256'].to_numpy(), layer = layer)
+    hist_dict['4j_3456_dR'].fill(selected_events['dR_3456'].to_numpy(), layer = layer)
+
+    hist_dict['m_min'].fill(selected_events['m_min'].to_numpy(), layer = layer)
+    hist_dict['m_mean'].fill(selected_events['m_mean'].to_numpy(), layer = layer)
+    hist_dict['m_max'].fill(selected_events['m_max'].to_numpy(), layer = layer)
+
+    hist_dict['dEta_min'].fill(selected_events['dEta_min'].to_numpy(), layer = layer)
+    hist_dict['dEta_mean'].fill(selected_events['dEta_mean'].to_numpy(), layer = layer)
+    hist_dict['dEta_max'].fill(selected_events['dEta_max'].to_numpy(), layer = layer)
+
+    hist_dict['bb_12_pT_dR_2D'].fill(selected_events[['pT_12', 'dR_12']].to_numpy(), layer = layer)
+    hist_dict['bb_34_pT_dR_2D'].fill(selected_events[['pT_34', 'dR_34']].to_numpy(), layer = layer)
+    hist_dict['bb_56_pT_dR_2D'].fill(selected_events[['pT_56', 'dR_56']].to_numpy(), layer = layer)
 
     index_mask = events.index.isin(selected_events.index.values)
     events.loc[index_mask] = selected_events
@@ -655,12 +625,12 @@ def Fill_histograms(jets, free_leptons, events, hist_dict, layer = None, analyse
     but implements the layer = None behaviour.
     """
 
-    events = events.assign( pT_1 = 0, eta_1 = 0, bTag_1 = 0,
-                            pT_2 = 0, eta_2 = 0, bTag_2 = 0,
-                            pT_3 = 0, eta_3 = 0, bTag_3 = 0,
-                            pT_4 = 0, eta_4 = 0, bTag_4 = 0,
-                            pT_5 = 0, eta_5 = 0, bTag_5 = 0,
-                            pT_6 = 0, eta_6 = 0, bTag_6 = 0,
+    events = events.assign( pT_1 = 0, eta_1 = 0, 
+                            pT_2 = 0, eta_2 = 0, 
+                            pT_3 = 0, eta_3 = 0, 
+                            pT_4 = 0, eta_4 = 0, 
+                            pT_5 = 0, eta_5 = 0, 
+                            pT_6 = 0, eta_6 = 0, 
                             x_HH = 0, x_HZ = 0, x_ZZ = 0,
                             m_12 = 0, m_34 = 0, m_56 = 0, 
                             m_HZ_1 = 0, m_HZ_2 = 0,
@@ -669,18 +639,10 @@ def Fill_histograms(jets, free_leptons, events, hist_dict, layer = None, analyse
                             dEta_12 = 0, dEta_34 = 0, dEta_56 = 0,
                             dPhi_12 = 0, dPhi_34 = 0, dPhi_56 = 0,
                             pT_12 = 0, pT_34 = 0, pT_56 = 0,
-                            xWt1 = 0, xH1 = 0, xZ1 = 0, 
-                            m_1234 = 0, m_1256 = 0, m_3456 = 0,
-                            m_HZ = 0, m_ZZ = 0,
+                            xWt1 = 0, HT_select = 0, m_1234 = 0,
                             dR_1234 = 0, dR_1256 = 0, dR_3456 = 0,
-                            m_bb_min = 0, m_bb_mean = 0, m_bb_max = 0,
-                            m_jj_min = 0, m_jj_mean = 0, m_jj_max = 0,
-                            dEta_bb_min = 0, dEta_bb_mean = 0, dEta_bb_max = 0,
-                            dEta_jj_min = 0, dEta_jj_mean = 0, dEta_jj_max = 0,
-                            dR_bb_min = 0, dR_bb_mean = 0, dR_bb_max = 0,
-                            dR_jj_min = 0, dR_jj_mean = 0, dR_jj_max = 0,
-                            HT_contents = 0, HT_b = 0, HT_j = 0,
-                            Sphere = 0, Aplanar = 0, C_value = 0, D_value = 0)
+                            m_min = 0, m_mean = 0, m_max = 0,
+                            dEta_min = 0, dEta_mean = 0, dEta_max = 0)
 
     for i in range(len(analyses)):
         # analyses[i] provides the event type being selected for the analysis.
@@ -694,7 +656,7 @@ def Fill_histograms(jets, free_leptons, events, hist_dict, layer = None, analyse
     return events
 
 
-def Analyse_file(path, analyses = [0, 1, 2], reco = True, nsets = 1, layer = None, hist_dict = None, nbatch = 100):
+def Analyse_file(path, analyses = [0, 1, 2], reco = True, nsets = 1, layer = None, hist_dict = None, ntot = 10000, nbatch = 100):
     """
     Analyse a given file with the following settings:
         - path:         Path to the .root file that is to be analysed
@@ -731,92 +693,66 @@ def Analyse_file(path, analyses = [0, 1, 2], reco = True, nsets = 1, layer = Non
     if hist_dict == None:
         hist_dict = {
         'cutflows': Histogram1D(np.linspace(-0.5, 2.5, 4), nsets = nsets),
-        'nJets': Histogram1D(np.linspace(-0.5, 16.5, 18), nsets = nsets),
-        'nBjets': Histogram1D(np.linspace(-0.5, 16.5, 18), nsets = nsets),
-        'nNotbjets': Histogram1D(np.linspace(-0.5, 16.5, 18), nsets = nsets),
-        'yields': Histogram1D(np.array([0.5, 1.5, 3.5, 4.5, 5.5, 6.5]), nsets = nsets),
-        'pT_1': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'eta_1': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
-        'pT_2': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'eta_2': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
-        'pT_3': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'eta_3': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
-        'pT_4': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'eta_4': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
-        'pT_5': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'eta_5': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
-        'pT_6': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'eta_6': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
-        'x_HH': Histogram1D(np.linspace(0, 15, 25), nsets = nsets),
-        'x_HZ': Histogram1D(np.linspace(0, 15, 25), nsets = nsets),
-        'x_ZZ': Histogram1D(np.linspace(0, 15, 25), nsets = nsets),
-        'm_12': Histogram1D(np.linspace(0, 700, 36),nsets = nsets),
-        'm_34': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'm_56': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'm_HZ_1': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'm_HZ_2': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'm_ZZ_1': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'm_ZZ_2': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'dR_12': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
-        'dR_34': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
-        'dR_56': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
-        'dEta_12': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
-        'dEta_34': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
-        'dEta_56': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
-        'dPhi_12': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
-        'dPhi_34': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
-        'dPhi_56': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
-        'pT_12': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'pT_34': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'pT_56': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'n_jets': Histogram1D(np.linspace(-0.5, 16.5, 18), nsets = nsets),
+        'n_bjets': Histogram1D(np.linspace(-0.5, 16.5, 18), nsets = nsets),
+        'n_notbjets': Histogram1D(np.linspace(-0.5, 16.5, 18), nsets = nsets),
+        'yields': Histogram1D(np.linspace(3.5, 6.5, 4), nsets = nsets),
+        'b_1_pt': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'b_1_eta': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
+        'b_2_pt': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'b_2_eta': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
+        'b_3_pt': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'b_3_eta': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
+        'b_4_pt': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'b_4_eta': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
+        'b_5_pt': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'b_5_eta': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
+        'b_6_pt': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'b_6_eta': Histogram1D(np.linspace(0, 2.5, 26), nsets = nsets),
+        'bb_x_HH': Histogram1D(np.linspace(0, 15, 25), nsets = nsets),
+        'bb_x_HZ': Histogram1D(np.linspace(0, 15, 25), nsets = nsets),
+        'bb_x_ZZ': Histogram1D(np.linspace(0, 15, 25), nsets = nsets),
+        'bb_12_mass': Histogram1D(np.linspace(0, 700, 36),nsets = nsets),
+        'bb_34_mass': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'bb_56_mass': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'bb_HZ_1_mass': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'bb_HZ_2_mass': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'bb_ZZ_1_mass': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'bb_ZZ_2_mass': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'bb_12_dR': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
+        'bb_34_dR': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
+        'bb_56_dR': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
+        'bb_12_dEta': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
+        'bb_34_dEta': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
+        'bb_56_dEta': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
+        'bb_12_dPhi': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
+        'bb_34_dPhi': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
+        'bb_56_dPhi': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
+        'bb_12_pT': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'bb_34_pT': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'bb_56_pT': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
         'xWt1': Histogram1D(np.linspace(0, 15, 25), nsets = nsets),
-        'xH1': Histogram1D(np.linspace(0, 15, 25), nsets = nsets),
-        'xZ1': Histogram1D(np.linspace(0, 15, 25), nsets = nsets),
-        'm_1234': Histogram1D(np.linspace(120, 2000, 48), nsets = nsets),
-        'm_1256': Histogram1D(np.linspace(120, 2000, 48), nsets = nsets),
-        'm_3456': Histogram1D(np.linspace(120, 2000, 48), nsets = nsets),
-        'm_HZ': Histogram1D(np.linspace(120, 2000, 48), nsets = nsets),
-        'm_ZZ': Histogram1D(np.linspace(120, 2000, 48), nsets = nsets),
-        'dR_1234': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
-        'dR_1256': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
-        'dR_3456': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
+        '4j_1234_mass': Histogram1D(np.linspace(120, 2000, 48), nsets = nsets),
+        '4j_1234_dR': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
+        '4j_1256_dR': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
+        '4j_3456_dR': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
         'lep_pt': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'Event.HT': Histogram1D(np.linspace(320, 2000, 43), nsets = nsets),
-        'HT_contents': Histogram1D(np.linspace(320, 2000, 43), nsets = nsets),
-        'HT_j': Histogram1D(np.linspace(320, 2000, 43), nsets = nsets),
-        'HT_b': Histogram1D(np.linspace(320, 2000, 43), nsets = nsets),
-        'm_bb_min': Histogram1D(np.linspace(0, 300, 31), nsets = nsets),
-        'm_bb_mean': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'm_bb_max': Histogram1D(np.linspace(120, 2000, 48), nsets = nsets),
-        'm_jj_min': Histogram1D(np.linspace(0, 300, 31), nsets = nsets),
-        'm_jj_mean': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
-        'm_jj_max': Histogram1D(np.linspace(120, 2000, 48), nsets = nsets),
-        'dEta_bb_min': Histogram1D(np.linspace(0, np.pi/4, 25), nsets = nsets),
-        'dEta_bb_mean': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
-        'dEta_bb_max': Histogram1D(np.linspace(0, 2*np.pi, 25), nsets = nsets),
-        'dEta_jj_min': Histogram1D(np.linspace(0, np.pi/4, 25), nsets = nsets),
-        'dEta_jj_mean': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
-        'dEta_jj_max': Histogram1D(np.linspace(0, 2*np.pi, 25), nsets = nsets),
-        'dR_bb_min': Histogram1D(np.linspace(0, 3.5, 25), nsets = nsets),
-        'dR_bb_mean': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
-        'dR_bb_max': Histogram1D(np.linspace(0, 14, 25), nsets = nsets),
-        'dR_jj_min': Histogram1D(np.linspace(0, 3.5, 25), nsets = nsets),
-        'dR_jj_mean': Histogram1D(np.linspace(0, 7, 25), nsets = nsets),
-        'dR_jj_max': Histogram1D(np.linspace(0, 14, 25), nsets = nsets),
-        'Sphere': Histogram1D(np.linspace(0, 1, 25), nsets = nsets),
-        'Aplanar': Histogram1D(np.linspace(0, 0.5, 25), nsets = nsets),
-        'C_value': Histogram1D(np.linspace(0, 1, 25), nsets = nsets),
-        'D_value': Histogram1D(np.linspace(0, 1, 25), nsets = nsets),
-        # 'bb_12_pT_dR_2D': Histogram2D([np.linspace(0, 700, 36), np.linspace(0, 7, 25)], nsets = nsets),
-        # 'bb_34_pT_dR_2D': Histogram2D([np.linspace(0, 700, 36), np.linspace(0, 7, 25)], nsets = nsets),
-        # 'bb_56_pT_dR_2D': Histogram2D([np.linspace(0, 700, 36), np.linspace(0, 7, 25)], nsets = nsets)
+        'HT_total': Histogram1D(np.linspace(320, 2000, 43), nsets = nsets),
+        'HT_select': Histogram1D(np.linspace(320, 2000, 43), nsets = nsets),
+        'm_min': Histogram1D(np.linspace(0, 300, 31), nsets = nsets),
+        'm_mean': Histogram1D(np.linspace(0, 700, 36), nsets = nsets),
+        'm_max': Histogram1D(np.linspace(120, 2000, 48), nsets = nsets),
+        'dEta_min': Histogram1D(np.linspace(0, np.pi/4, 25), nsets = nsets),
+        'dEta_mean': Histogram1D(np.linspace(0, np.pi, 25), nsets = nsets),
+        'dEta_max': Histogram1D(np.linspace(0, 2*np.pi, 25), nsets = nsets),
+        'bb_12_pT_dR_2D': Histogram2D([np.linspace(0, 700, 36), np.linspace(0, 7, 25)], nsets = nsets),
+        'bb_34_pT_dR_2D': Histogram2D([np.linspace(0, 700, 36), np.linspace(0, 7, 25)], nsets = nsets),
+        'bb_56_pT_dR_2D': Histogram2D([np.linspace(0, 700, 36), np.linspace(0, 7, 25)], nsets = nsets)
         }
 
     # Open the .root file and store the contents in 3 different awkward arrays
     print("\n\nOpening file\n")
-    contents = Open_file(path, reco = reco)
-    ntot = contents[0]
-    data = contents[1:]
+    data = Open_file(path, reco = reco)
 
     events_list = []
 
@@ -842,206 +778,175 @@ def Analyse_file(path, analyses = [0, 1, 2], reco = True, nsets = 1, layer = Non
 
 # %%
 
-lumi = 3000
+decays = ['fullhad']
+file_path_ttHH = ['/Users/renske/Documents/CERN/ttHH_data/ttHH_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
+file_path_ttHjj = ['/Users/renske/Documents/CERN/ttHH_data/ttHjj_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
+file_path_ttbbbb = ['/Users/renske/Documents/CERN/ttHH_data/ttbbbb_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
 
-decays = ['fullhad', 'semilep', 'dilep']
-file_dir = '/eos/atlas/user/s/smanzoni/ttHH_ntuples/'
-file_path_ttHH = [file_dir+'ttHH_1M_events.root:Delphes', file_dir+'ttHH_1M_events_1.root:Delphes']
-file_path_ttHZ = [file_dir+'ttHZ_1M_events.root:Delphes', file_dir+'ttHZ_1M_events_1.root:Delphes']
-# file_path_ttVV = [file_dir+'ttVV_1M_events.root:Delphes']
-file_path_ttHjj = [file_dir+'ttHHjj_1M_events.root:Delphes', file_dir+'ttHHjj_1M_events_1.root:Delphes']
-file_path_ttbbbb = [file_dir+'tt4b_1M_events.root:Delphes', file_dir+'tt4b_1M_events_1.root:Delphes']
-file_path_tt = [file_dir+'tt_300k_events.root:Delphes']
-file_path_tttt = [file_dir+'tttt_300k_events.root:Delphes']
-file_path_ttZZ = [file_dir+'ttZZ_300k_events.root:Delphes']
-file_path_ttZjj = [file_dir+'ttZjj_300k_events.root:Delphes']
-# file_path_ttbbbb = ['/Users/renske/Documents/CERN/ttHH/ttbbbb_'+decay+'/tag_1_delphes_events.root:Delphes' for decay in decays]
+files = [*file_path_ttbbbb, *file_path_ttHjj, *file_path_ttHH]
 
-files = [*file_path_ttHH, *file_path_ttHZ, *file_path_ttHjj, *file_path_ttZZ, *file_path_ttZjj, *file_path_ttbbbb, *file_path_tttt, *file_path_tt]
-# files = ['/eos/user/r/rewierda/tthh/ttHH_10k_dilep_btagged/tag_1_delphes_events.root:Delphes']
-
-n_events = 1E6
+n_events = 10000
 
 xs_decays = {'fullhad': 0.6741**2,
              'semilep': 2*0.2134*0.6741,
-             'dilep': 0.2134**2,
-             'inclusive': (0.6741 + 0.2134)**2}
+             'dilep': 0.2134**2}
 
-xs_ttHH = 0.69*0.575**2
-xs_ttHjj = 329*0.575
-xs_ttHZ = 1.2*0.575
-xs_ttVV = 11.2
-xs_ttbbbb = 370
+xs_ttHH = 0.000744457
+xs_ttHjj = 0.45982401751254454
+xs_ttbbbb = 0.00012963823574710002
 
-nsets = 8
-# keys = [*['ttbbbb {}'.format(decay) for decay in decays], *['ttHjj {}'.format(decay) for decay in decays], *['ttHH {}'.format(decay) for decay in decays]]
-keys = [*['ttHH']*2, *['ttHZ']*2, *['ttHjj']*2, *['ttZZ']*1, *['ttZjj']*1, *['ttbbbb']*2, *['tttt']*1, *['tt']*1]
-layers = [*[0]*2, *[1]*2, *[2]*2, *[3]*1, *[4]*1, *[5]*2, *[6]*1, *[7]*1]
-analyses = [0, 1, 2]
+lumi = 140*10**3
 
+nsets = 3
+keys = [*['ttbbbb {}'.format(decay) for decay in decays], *['ttHjj {}'.format(decay) for decay in decays], *['ttHH {}'.format(decay) for decay in decays]]
+analyses = [0]
 hist_dict = None
 event_list = []
-keys_passed = []
 
-for i in range(len(files)):
-    hist_dict, events = Analyse_file(files[i], layer = layers[i], analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500)
+for i in range(nsets):
+    hist_dict, events = Analyse_file(files[i], layer = i, analyses = analyses, reco = True, nsets = nsets, hist_dict = hist_dict, nbatch = 500, ntot = n_events)
     if len(events) != 0:
         event_list.append(events)
-        keys_passed.append(keys[i])
 
-events = pd.concat(event_list, keys = keys_passed)
-keys_unique = np.unique(keys)
-ttHH_layer = 0
+events = pd.concat(event_list, keys = keys)
+significance = pd.DataFrame(index = pd.Index([0, 1, 2], name = 'nLeptons'), columns = pd.Index([4, 5, 6], name = 'nBjets'))
+for event_type in [0, 1, 2]:
+    for group in [4, 5, 6]:
+        mask1 = events['Event_type'] == event_type
+        mask2 = events['Bjet_group'] == group
+        selected_events = events[np.logical_and(mask1, mask2)]
+
+        labels = np.asarray(selected_events.index.get_level_values(0).unique(), dtype = str)
+        if np.all(np.char.find(labels, 'ttHjj') == -1.) and np.all(np.char.find(labels, 'ttbbbb') == -1.):
+            continue
+        
+        signal_yields = 0
+        background_yields = 0
+        for decay in decays:
+            if 'ttHH '+decay in labels:
+                signal_yields += xs_ttHH*xs_decays[decay]*len(selected_events.loc['ttHH '+decay])/n_events
+            if 'ttHjj '+decay in labels:
+                background_yields += xs_ttHjj*xs_decays[decay]*len(selected_events.loc['ttHjj '+decay])/n_events
+            if 'ttbbbb '+decay in labels:
+                background_yields += xs_ttHjj*xs_decays[decay]*len(selected_events.loc['ttbbbb '+decay])/n_events
+
+        if background_yields == 0: continue
+        significance.loc[event_type, group] = signal_yields/background_yields**0.5
+
+print(lumi*significance)
 
 events.to_csv('Results_analysis_{}.csv'.format(''.join(map(str, analyses))))
 
 
 #%%
-# cdict = {   'dark pink': '#F2385A',
-#             'dark blue': '#343844',
-#             'dark turquoise': '#36B1Bf',
-#             'light turquoise': '#4AD9D9',
-#             'off white': '#E9F1DF',
-#             'dark yellow': '#FDC536',
-#             'light green': '#BCD979',
-#             'dark green': '#9DAD6F',
-#             'lilac': 'BD93D8'}
-# colours = list(cdict.values())
-# hist_kwargs = pd.DataFrame({
-#         'cutflows': ['cutflow'],
-#         'nJets': ['number of jets (j)'],
-#         'nBjets': ['number of bjets (b)'],
-#         'nNotbjets': ['number of other jets (nb)'],
-#         'yields': ['yields per number of bjets (b)'],
-#         'pT_1': [r'$p_T$ of $j_1$'],
-#         'eta_1': [r'$\eta$ of $j_1$'],
-#         'pT_2': [r'$p_T$ of $j_2$'],
-#         'eta_2': [r'$\eta$ of $j_2$'],
-#         'pT_3': [r'$p_T$ of $j_3$'],
-#         'eta_3': [r'$\eta$ of $j_3$'],
-#         'pT_4': [r'$p_T$ of $j_4$'],
-#         'eta_4': [r'$\eta$ of $j_4$'],
-#         'pT_5': [r'$p_T$ of $j_5$'],
-#         'eta_5': [r'$\eta$ of $j_5$'],
-#         'pT_6': [r'$p_T$ of $j_6$'],
-#         'eta_6': [r'$\eta$ of $j_6$'],
-#         'x_HH': [r'$\chi^2_{HH}$'],
-#         'x_HZ': [r'$\chi^2_{HZ}$'],
-#         'x_ZZ': [r'$\chi^2_{ZZ}$'],
-#         'm_12': [r'$m_{bb, 12}$'],
-#         'm_34': [r'$m_{bb, 34}$'],
-#         'm_56': [r'$m_{jj, 56}$'],
-#         'm_HZ_1': [r'$m_{HZ, 12}$'],
-#         'm_HZ_2': [r'$m_{HZ, 34}$'],
-#         'm_ZZ_1': [r'$m_{ZZ, 12}$'],
-#         'm_ZZ_2': [r'$m_{ZZ, 34}$'],
-#         'dR_12': [r'$\Delta R_{bb, 12}$'],
-#         'dR_34': [r'$\Delta R_{bb, 34}$'],
-#         'dR_56': [r'$\Delta R_{jj, 56}$'],
-#         'dEta_12': [r'$\Delta\eta_{bb, 12}$'],
-#         'dEta_34': [r'$\Delta\eta_{bb, 34}$'],
-#         'dEta_56': [r'$\Delta\eta_{jj, 56}$'],
-#         'dPhi_12': [r'$\Delta\phi_{bb, 12}$'],
-#         'dPhi_34': [r'$\Delta\phi_{bb, 34}$'],
-#         'dPhi_56': [r'$\Delta\phi_{jj, 56}$'],
-#         'pT_12': [r'$p_{T, bb, 12}$'],
-#         'pT_34': [r'$p_{T, bb, 34}$'],
-#         'pT_56': [r'$p_{T, jj, 56}$'],
-#         'xWt1': [r'$X_{Wt}$'],
-#         'xH1': [r'$X_{H}$'],
-#         'xZ1': [r'$X_{Z}$'],
-#         'm_1234': [r'$m_{4j, 1234}$'],
-#         'm_1256': [r'$m_{4j, 1256}$'],
-#         'm_3456': [r'$m_{4j, 3456}$'],
-#         'm_HZ': [r'$m_{4j, HZ}$'],
-#         'm_ZZ': [r'$m_{4j, ZZ}$'],
-#         'dR_1234': [r'$\Delta R_{4j, 1234}$'],
-#         'dR_1256': [r'$\Delta R_{4j, 1256}$'],
-#         'dR_3456': [r'$\Delta R_{4j, 3456}$'],
-#         'lep_pt': [r'lepton $p_T$'],
-#         'Event.HT': [r'$HT$ event'],
-#         'HT_contents': [r'$HT$ jets + leptons'],
-#         'HT_j': [r'$HT$ jets'],
-#         'HT_b': [r'$HT$ bjets'],
-#         'm_bb_min': [r'$m_{bb, min}$'],
-#         'm_bb_mean': [r'$m_{bb, mean}$'],
-#         'm_bb_max': [r'$m_{bb, max}$'],
-#         'm_jj_min': [r'$m_{jj, min}$'],
-#         'm_jj_mean': [r'$m_{jj, mean}$'],
-#         'm_jj_max': [r'$m_{jj, max}$'],
-#         'dEta_bb_min': [r'$\Delta\eta_{bb, min}$'],
-#         'dEta_bb_mean': [r'$\Delta\eta_{bb, mean}$'],
-#         'dEta_bb_max': [r'$\Delta\eta_{bb, max}$'],
-#         'dEta_jj_min': [r'$\Delta\eta_{jj, min}$'],
-#         'dEta_jj_mean': [r'$\Delta\eta_{jj, mean}$'],
-#         'dEta_jj_max': [r'$\Delta\eta_{jj, max}$'],
-#         'dR_bb_min': [r'$\Delta R_{bb, min}$'],
-#         'dR_bb_mean': [r'$\Delta R_{bb, mean}$'],
-#         'dR_bb_max': [r'$\Delta R_{bb, max}$'],
-#         'dR_jj_min': [r'$\Delta R_{jj, min}$'],
-#         'dR_jj_mean': [r'$\Delta R_{jj, mean}$'],
-#         'dR_jj_max': [r'$\Delta R_{jj, max}$'],
-#         'Sphere': [r'$S$'],
-#         'Aplanar': [r'$A$'],
-#         'C_value': [r'$C$ value'],
-#         'D_value': [r'$D$ value'],
-#         # 'bb_12_pT_dR_2D': [r'$p_{T, bb, 12}$', r'$\Delta R_{bb, 12}$'],
-#         # 'bb_34_pT_dR_2D': [r'$p_{T, bb, 34}$', r'$\Delta R_{bb, 34}$'],
-#         # 'bb_56_pT_dR_2D': [r'$p_{T, bb, 56}$', r'$\Delta R_{bb, 56}$']
-#         }, index = ['xlabel'])
+colours = ['r', 'g', 'b', 'c']
+hist_kwargs = pd.DataFrame({
+        'cutflows': ['cutflow'],
+        'n_jets': ['number of jets (j)'],
+        'n_bjets': ['number of bjets (b)'],
+        'n_notbjets': ['number of other jets (nb)'],
+        'yields': ['yields per number of bjets (b)'],
+        'b_1_pt': [r'$p_T$ of $j_1$'],
+        'b_1_eta': [r'$\eta$ of $j_1$'],
+        'b_2_pt': [r'$p_T$ of $j_2$'],
+        'b_2_eta': [r'$\eta$ of $j_2$'],
+        'b_3_pt': [r'$p_T$ of $j_3$'],
+        'b_3_eta': [r'$\eta$ of $j_3$'],
+        'b_4_pt': [r'$p_T$ of $j_4$'],
+        'b_4_eta': [r'$\eta$ of $j_4$'],
+        'b_5_pt': [r'$p_T$ of $j_5$'],
+        'b_5_eta': [r'$\eta$ of $j_5$'],
+        'b_6_pt': [r'$p_T$ of $j_6$'],
+        'b_6_eta': [r'$\eta$ of $j_6$'],
+        'bb_x_HH': [r'$\chi^2_{HH}$'],
+        'bb_x_HZ': [r'$\chi^2_{HZ}$'],
+        'bb_x_ZZ': [r'$\chi^2_{ZZ}$'],
+        'bb_12_mass': [r'$m_{bb, 12}$'],
+        'bb_34_mass': [r'$m_{bb, 34}$'],
+        'bb_56_mass': [r'$m_{jj, 56}$'],
+        'bb_HZ_1_mass': [r'$m_{HZ, 12}$'],
+        'bb_HZ_2_mass': [r'$m_{HZ, 34}$'],
+        'bb_ZZ_1_mass': [r'$m_{ZZ, 12}$'],
+        'bb_ZZ_2_mass': [r'$m_{ZZ, 34}$'],
+        'bb_12_dR': [r'$\Delta R_{bb, 12}$'],
+        'bb_34_dR': [r'$\Delta R_{bb, 34}$'],
+        'bb_56_dR': [r'$\Delta R_{jj, 56}$'],
+        'bb_12_dEta': [r'$\Delta\eta_{bb, 12}$'],
+        'bb_34_dEta': [r'$\Delta\eta_{bb, 34}$'],
+        'bb_56_dEta': [r'$\Delta\eta_{jj, 56}$'],
+        'bb_12_dPhi': [r'$\Delta\phi_{bb, 12}$'],
+        'bb_34_dPhi': [r'$\Delta\phi_{bb, 34}$'],
+        'bb_56_dPhi': [r'$\Delta\phi_{jj, 56}$'],
+        'bb_12_pT': [r'$p_{T, bb, 12}$'],
+        'bb_34_pT': [r'$p_{T, bb, 34}$'],
+        'bb_56_pT': [r'$p_{T, jj, 56}$'],
+        'xWt1': [r'$X_{Wt}$'],
+        '4j_1234_mass': [r'$m_{4j, 1234}$'],
+        '4j_1234_dR': [r'$\Delta R_{4j, 1234}$'],
+        '4j_1256_dR': [r'$\Delta R_{4j, 1256}$'],
+        '4j_3456_dR': [r'$\Delta R_{4j, 3456}$'],
+        'lep_pt': [r'lepton $p_T$'],
+        'HT_total': [r'$HT$ event'],
+        'HT_select': [r'$HT$ jets + leptons'],
+        'm_min': [r'$m_{min}$'],
+        'm_mean': [r'$m_{mean}$'],
+        'm_max': [r'$m_{max}$'],
+        'dEta_min': [r'$\Delta\eta_{min}$'],
+        'dEta_mean': [r'$\Delta\eta_{mean}$'],
+        'dEta_max': [r'$\Delta\eta_{max}$'],
+        'bb_12_pT_dR_2D': [r'$p_{T, bb, 12}$', r'$\Delta R_{bb, 12}$'],
+        'bb_34_pT_dR_2D': [r'$p_{T, bb, 34}$', r'$\Delta R_{bb, 34}$'],
+        'bb_56_pT_dR_2D': [r'$p_{T, bb, 56}$', r'$\Delta R_{bb, 56}$']
+        }, index = ['xlabel', 'ylabel'])
 
-# with PdfPages('Results_{}.pdf'.format(''.join(map(str, analyses)))) as pdf:
-#     for key in hist_kwargs.columns.values:
-#         hist = hist_dict[key]
-#         if '2D' in key:
-#             fig, axs = plt.subplots(nrows = nsets, figsize = (7, nsets*7))
-#             for j in range(nsets):
-#                 if np.array(hist.data[j]).ndim != 2: continue
-#                 heights, xedges, yedges = hist.get(j)
-#                 xv, yv = np.meshgrid(xedges, yedges)
-#                 axs[j].pcolormesh(xv, yv, heights.T, cmap = 'plasma')
-#                 axs[j].set_xlabel(hist_kwargs.loc['xlabel', key])
-#                 axs[j].set_ylabel(hist_kwargs.loc['ylabel', key])
+with PdfPages('Results.pdf') as pdf:
+    for key in hist_kwargs.columns.values:
+        hist = hist_dict[key]
+        if '2D' in key:
+            fig, axs = plt.subplots(nrows = nsets, figsize = (7, nsets*7))
+            for j in range(nsets):
+                heights, xedges, yedges = hist.get(j)
+                xv, yv = np.meshgrid(xedges, yedges)
+                axs[j].pcolormesh(xv, yv, heights.T, cmap = 'plasma')
+                axs[j].set_xlabel(hist_kwargs.loc['xlabel', key])
+                axs[j].set_ylabel(hist_kwargs.loc['ylabel', key])
 
-#         else: 
-#             fig, ax = plt.subplots(figsize = (7, 7))
-#             if key in ['cutflows', 'yields']: 
-#                 get = hist.get
-#             else: 
-#                 get = hist.get_normalised_idiot
-#             divider = make_axes_locatable(ax)
-#             ax_ratio = divider.append_axes("bottom", 1.2, pad=0.1, sharex=ax)
-#             ax.xaxis.set_tick_params(labelbottom=False)
-#             for j in range(nsets):
-#                 # if len(hist.data[j]) == 0: continue
-#                 heights, bin_edges = get(j)
-#                 ax.stairs(heights, bin_edges, color = colours[j], 
-#                         alpha = 0.6, label = keys_unique[j])
-#                 ax_ratio.stairs(heights/get(0)[0], bin_edges, color = colours[j], 
-#                         alpha = 0.6, label = keys_unique[j])
-#                 ax_ratio.set_xlabel(hist_kwargs.loc['xlabel', key])
-#                 if key not in ['xWt1']: ax.set_yscale('log')
-#                 ax.legend()
+        else: 
+            fig, ax = plt.subplots(figsize = (7, 7))
+            if key in ['cutflows', 'yields']: 
+                get = hist.get
+            else: 
+                get = hist.get_normalised_idiot
+            divider = make_axes_locatable(ax)
+            ax_ratio = divider.append_axes("bottom", 1.2, pad=0.1, sharex=ax)
+            ax.xaxis.set_tick_params(labelbottom=False)
+            for j in range(nsets):
+                heights, bin_edges = get(j)
+                ax.stairs(heights, bin_edges, color = colours[j], 
+                        alpha = 0.6, label = keys[j])
+                ax_ratio.stairs(heights/get(0)[0], bin_edges, color = colours[j], 
+                        alpha = 0.6, label = keys[j])
+                ax_ratio.set_xlabel(hist_kwargs.loc['xlabel', key])
+                if key not in ['xWt1']: ax.set_yscale('log')
+                ax.legend()
 
-#             if key in ['m_12', 'm_34', 'm_56', 'm_HZ_1']:
-#                 ax.axvline(125, c = 'k', lw = 1)
-#             if key in ['m_HZ_2', 'm_ZZ_1', 'm_ZZ_2']:
-#                 ax.axvline(91, c = 'k', lw = 1)
+            if key in ['bb_12_mass', 'bb_34_mass', 'bb_56_mass']:
+                ax.axvline(125, c = 'k', lw = 2)
 
-#         pdf.savefig(fig)
-#         plt.show()
+        pdf.savefig(fig)
+        plt.show()
 
 
 # %%
 
-# file_path = file_path_ttHH[0]
-# file = uproot.open(file_path)
+file_path = file_path_ttHH[0]
+file = uproot.open(file_path)
 
-# jet_keys = file.keys(filter_name = 'GenJet*')
-# jet_keys.remove('GenJet/GenJet.fBits')
-# while jet_keys[-1] != 'GenJet/GenJet.PTD':
-#     jet_keys.pop()
-# genjet_data = file.arrays(filter_name = jet_keys)
+jet_keys = file.keys(filter_name = 'GenJet*')
+jet_keys.remove('GenJet/GenJet.fBits')
+while jet_keys[-1] != 'GenJet/GenJet.PTD':
+    jet_keys.pop()
+genjet_data = file.arrays(filter_name = jet_keys)
 # genjets = aw.to_pandas(genjet_data[:100])
 
 # particle_keys = file.keys(filter_name = 'Particle*')
